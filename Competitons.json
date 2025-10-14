@@ -1,0 +1,35 @@
+{
+  "competitions": [
+    {
+      "name":"Boilermake",
+      "description": "Here at BoilerMake, we provide you with the resources (and snacks) to build that dream project you’ve been dying to create. You can share your work with hundreds of other hackers and corporate sponsors, while potentially getting a share of our $10,000 prize pool at the end of a wild 36 hours. Give yourself a chance to add to the legacy of great projects made at BoilerMake, including VR DDR, Skittles Launcher, and more.",
+      "image": "competition images/boilermake.png",
+      "links": "https://boilermake.org/"
+    },
+    {
+      "name":"Catapult",
+      "description": "Welcome to Catapult: a 24-hour sprint to turn your ideas into reality. Whether you’re a designer, hacker, founder, or musician, Catapult is your launchpad to create, build, and share something extraordinary. No matter your experience level, this is your chance to collaborate, experiment, and make it happen. Ready to take the leap? Let’s build something unforgettable.",
+      "image": "competition images/catapult.png",
+      "links": "https://catapult.framer.website/"
+    },
+    {
+      "name":"HelloWorld",
+      "description": "Welcome to Hello World 2025. Hello World is a 24-hour coding marathon where you can turn your ideas into reality. Our mission is to empower students who are just starting their journey in tech. To foster a truly welcoming atmosphere, this event is built for newcomers, ensuring a level playing field for everyone to learn, experiment, and bring their first idea to life.",
+      "image": "competition images/HelloWorld.png",
+      "links": "https://www.instagram.com/helloworldpurdue/"
+    },
+    {
+      "name":"Purdue Moonshot Pitch",
+      "description": "We’re asking students to think beyond the classroom and pitch an idea that solves a real-world problem in 2 minutes or less. Finalists compete for a prize pool of $5,500 during a pitch competition in front of judges and a live audience.\n\nAny idea can be submitted for Moonshot! Decide which category your great idea falls into:\n\nEarth: social ideas primarily focused on addressing socio-economic needs & challenges.\nOrbit: business ideas primarily focused on launching a company offering an exchange of products, services, or information between businesses, or between businesses and customers.\nMoonshot: dent-in-the-universe ideas primarily focused on solving a seemingly impossible problem. This category focuses on radical solutions, disruptive technology, or futuristic technology.",
+      "image": "competition images/moonshot.png",
+      "links": "https://purdueinnovates.org/incubator/moonshot-pitch-challenge/"
+    },
+    {
+      "name":"Purdue Anvil",
+      "description": "Anvil is Purdue University’s most powerful supercomputer, providing researchers from diverse backgrounds with advanced computing capabilities. Built through a $10 million system acquisition grant from the National Science Foundation (NSF), Anvil supports scientific discovery by providing resources through the NSF’s Advanced Cyberinfrastructure Coordination Ecosystem: Services & Support (ACCESS), a program that serves tens of thousands of researchers across the United States. Purdue has proudly partnered with the NSF to deliver high-performance computing to researchers in need for over a decade. The Anvil supercomputer went into production in February of 2022 and will continue serving the research community through 2027. Additional funding from the NSF supports Anvil's operations and user support.",
+      "image": "competition images/anvil.png",
+      "links": "https://www.rcac.purdue.edu/anvil"
+    }
+  ]
+
+}

@@ -1,0 +1,11 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+
+# ignore env
+../backend/*.env
+../frontend/*.env
+../backend/node_modules
+../frontend/node_modules

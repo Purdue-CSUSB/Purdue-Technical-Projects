@@ -1,0 +1,35 @@
+{
+  "clubs": [
+    {
+      "name":"Boiler Exams",
+      "description": "Boilerexams was founded in 2020 by two Purdue freshmen who saw a need for a studying platform to help students adapt to the college exam environment. The first iteration was built in a few weeks over the summer and deployed for the first midterm cycle of fall 2020. It grew in popularity over the years, but its hastily designed site limited the founders’ ability to expand. In the spring of 2023, they began recruiting a team for a full redesign. Now, with a fresh new look, Boilerexams is better than ever. Enjoy new courses, better statistics, and the smoothest studying experience we could dream up.",
+      "image": "club images/Boiler-Exams.jpeg",
+      "links": "https://www.boilerexams.com/"
+    },
+    {
+      "name":"Boiler Classes",
+      "description": "BoilerClasses\nis an unofficial catalog for Purdue courses made by Purdue students,\nbased in West Lafayette, Indiana. BoilerClasses is a simple Next.js app with a few Python helper files to format and organize the data. We use a Redis instance to store and rapidly query all our data.\n\nWe use Fly.io through Docker to host our app. More steps to run the Docker container through our Dockerfile can be found below.\n\n",
+      "image": "club images/Boiler-Classes.png",
+      "links": "https://boilerclasses.com/"
+    },
+    {
+      "name":"Boiler Bookings",
+      "description": "Letter from the devs: \nHi. We’re college students who made BoilerBookings.com to make it easier to travel home for breaks. After people actually started using it, we brought on nine chillers to help.\n\nBooking trips with shuttles is already hard enough. But then, we noticed that airlines try to squeeze every dollar out of us with erratic prices.\n\nAs broke college students (and a bunch of CS majors) we made Jumpseat to solve these problems. Hopefully, it helps you out. If not, please email us to let us know.\n\n",
+      "image": "club images/BoilerBookings.png",
+      "links": "https://purdue.jumpseatapp.com/"
+    },
+    {
+      "name":"Hack The Future",
+      "description": "Creating Software for Nonprofits\nHack the Future is a student organization at Purdue aimed towards creating software for local nonprofits. We develop several projects throughout the school year with various different nonprofits with the hopes of bettering the community.\n\nWe are actively involved with the community and provide software development services at no cost to nonprofits! Hack the Future is comprised of students all working together to develop amazing projects.\n\n",
+      "image": "club images/HTF.png",
+      "links": "https://htfpurdue.org/"
+    },
+    {
+      "name":"Autonomous Robot Club",
+      "description": "The Autonomous Robotics Club of Purdue was created to grow the skills and abilities of its members through design projects centered around advanced autonomous robotics systems. It provides hands-on, real world experience to interdisciplinary teams using industry standard tools and practices.\n\nThrough ARC, members can meet like-minded individuals, solve real world robotics problems, gain experience with industry-standard tools, and build their career portfolios. We welcome new members of any skill level and provide an environment for members to learn about topics such as state estimation, control algorithms, and machine learning. New members have opportunities for leadership early on and can gain in depth experience working on projects that interest them. ARC projects typically include a mix of hardware and software design.",
+      "image": "club images/ARC.jpg",
+      "links": "https://purduearc.com/"
+    }
+  ]
+
+}
