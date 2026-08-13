@@ -13,7 +13,7 @@ async function main() {
   const db = await getDb();
 
   // Unique email is the actual guard against duplicate accounts. Signup depends on this index
-  // raising E11000, which api/auth/signup.js turns back into its 409 - a read-then-write check
+  // raising E11000, which api/auth/[action].js turns back into its 409 - a read-then-write check
   // instead would leave a race window where two concurrent signups both pass.
   await db.collection(USERS_COLLECTION).createIndex(
     { email: 1 },

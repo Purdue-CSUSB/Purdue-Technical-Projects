@@ -19,6 +19,28 @@ export const EMPTY_PROJECT_FORM = {
 // backend/lib/projectInput.js, which is what actually enforces it.
 export const REQUIRED_TEXT_FIELDS = ['name', 'description', 'category_id', 'links', 'status'];
 
+// Turns a stored project back into what the form edits, for the edit path.
+//
+// `image` is deliberately null rather than the stored picture: the board's JSON carries no image
+// bytes at all (they are served separately - see projectImageUrl), so there is nothing to put
+// here. An edit therefore starts with no new image, and PUT /api/projects/:id keeps the stored
+// one when the payload omits it. Picking a file replaces it; leaving it alone keeps it.
+export function projectToForm(project) {
+  if (!project) return EMPTY_PROJECT_FORM;
+  return {
+    name: project.name ?? '',
+    description: project.description ?? '',
+    image: null,
+    category_id: project.category_id ?? '',
+    // Copied, not referenced: the chip pickers replace these arrays as they go, and a cancelled
+    // edit must not have mutated the project still sitting on the board behind the dialog.
+    tags: Array.isArray(project.tags) ? [...project.tags] : [],
+    members: Array.isArray(project.members) ? [...project.members] : [],
+    links: project.links ?? '',
+    status: project.status ?? 'active'
+  };
+}
+
 // Projects predating the category picker are stored as 'other', so this falls back rather than
 // rendering "undefined" on a card.
 export function getCategoryLabel(categoryId) {

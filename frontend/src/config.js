@@ -11,7 +11,7 @@
 // the same domain independently - this is a convenience, not a security control.
 export const ALLOWED_EMAIL_DOMAIN = '@purdue.edu';
 
-// Matches the server's floor in api/auth/signup.js. bcrypt ignores anything past 72 bytes, so
+// Matches the server's floor in api/auth/[action].js. bcrypt ignores anything past 72 bytes, so
 // the server caps there too; the form doesn't bother repeating a ceiling nobody reaches.
 export const MIN_PASSWORD_LENGTH = 8;
 

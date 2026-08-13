@@ -51,3 +51,30 @@ export async function submitProject(authFetch, project) {
 
   return data;
 }
+
+/**
+ * Edits an existing showcase project. Resolves with the saved document, same as submitProject,
+ * and throws the same `stage`-carrying Error so the board can tell a moderation rejection from
+ * a limit from an outage.
+ *
+ * Omitting `image` from `project` keeps the stored one - the server only replaces the picture
+ * when the payload actually carries a new one. Edits are re-moderated exactly like creates,
+ * which is why this can be rejected even though the project is already on the board.
+ */
+export async function updateProject(authFetch, id, project) {
+  const response = await authFetch(`/api/projects/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(project)
+  });
+
+  const data = await readJson(response);
+
+  if (!response.ok) {
+    const error = new Error(data.message || 'Failed to save your changes. Please try again.');
+    error.stage = data.stage;
+    throw error;
+  }
+
+  return data;
+}

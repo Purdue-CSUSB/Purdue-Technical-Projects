@@ -37,8 +37,9 @@ must *not* penalise a listing for the project not existing yet, which is the ent
 ## Layout
 
 ```
-api/                          Vercel serverless functions (one file = one endpoint)
-  auth/                       signup, verify-email, resend-code, login, me, password reset
+api/                          Vercel serverless functions (one file = one function)
+  auth/[action].js            signup, verify-email, resend-code, login, me, password reset
+                              - all seven in one function, dispatched on the path segment
   submit.js                   POST   - post to the showcase
   projects/index.js           GET    - the public showcase
   projects/mine.js            GET    - your own showcase posts
@@ -55,6 +56,12 @@ frontend/                     Vite + React 19 + Tailwind v4 single-page app
   src/components/ui/          The shared design system (Button, Card, Field, ModalShell, ...)
   src/context/                Auth provider and the useAuth hook
 ```
+
+**Every file under `api/` becomes its own serverless function, and Vercel's Hobby plan caps a
+deployment at 12.** That is why the seven auth endpoints share `api/auth/[action].js` instead of
+getting a file each — as separate files the project came to 15 and the build was rejected
+outright. It currently sits at 9, so there is room for three more before that has to be
+revisited. The public URLs are unaffected either way.
 
 ## Accounts
 

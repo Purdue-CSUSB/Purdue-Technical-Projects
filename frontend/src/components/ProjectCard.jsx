@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExternalLink, Users } from 'lucide-react';
+import { ExternalLink, Pencil, Trash2, Users } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import Button from './ui/Button.jsx';
@@ -45,7 +45,7 @@ function ProjectImage({ project }) {
   );
 }
 
-export default function ProjectCard({ project, index = 0, onView }) {
+export default function ProjectCard({ project, index = 0, canManage = false, onView, onEdit, onDelete }) {
   const tags = project.tags ?? [];
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
   const hiddenTagCount = tags.length - visibleTags.length;
@@ -128,10 +128,41 @@ export default function ProjectCard({ project, index = 0, onView }) {
               {getCategoryLabel(project.category_id)}
             </span>
           </div>
-          <Button href={project.links} target="_blank" rel="noopener noreferrer" size="sm" lift="subtle" className="shrink-0">
-            Visit
-            <ExternalLink className="w-3.5 h-3.5" />
-          </Button>
+          {/* Owner controls sit beside Visit rather than replacing it: the person who posted a
+              project still wants to open it. Icon-only, matching OpenProjectCard, so the footer
+              stays the same height whether or not you happen to own this one. */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button href={project.links} target="_blank" rel="noopener noreferrer" size="sm" lift="subtle" className="shrink-0">
+              Visit
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Button>
+            {canManage && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  lift={false}
+                  onClick={() => onEdit(project)}
+                  title="Edit this project"
+                  aria-label={`Edit ${project.name}`}
+                  className="shrink-0"
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  lift={false}
+                  onClick={() => onDelete(project)}
+                  title="Remove this project"
+                  aria-label={`Delete ${project.name}`}
+                  className="shrink-0"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </motion.article>

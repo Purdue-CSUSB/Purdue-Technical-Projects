@@ -4,13 +4,16 @@ import ModalShell from './ui/ModalShell.jsx';
 import Button from './ui/Button.jsx';
 import Field, { FieldError, Label } from './ui/Field.jsx';
 import { MAX_MEMBERS, MAX_TAGS, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../config.js';
-import { EMPTY_PROJECT_FORM } from '../lib/projectFields.js';
+import { EMPTY_PROJECT_FORM, projectImageUrl, projectToForm } from '../lib/projectFields.js';
 import { ImageUploadError, prepareProjectImage } from '../lib/imageUpload.js';
 
-// Posting a finished project to the showcase. A dialog on the board rather than a page of its
-// own: the thing being created ends up here, so you never leave the context you're adding to -
-// and it matches how the Find a Project board has always worked, so the two boards are one
-// interaction rather than two.
+// Posting a finished project to the showcase, or editing one already on it. A dialog on the
+// board rather than a page of its own: the thing being created ends up here, so you never leave
+// the context you're adding to - and it matches how the Find a Project board has always worked,
+// so the two boards are one interaction rather than two.
+//
+// One dialog serves both modes, the same way OpenProjectFormModal does. A separate edit dialog
+// would be a second copy of every field, every limit and every validation rule to keep in step.
 
 // A removable chip, shared by the tags and members pickers so the two can't drift apart.
 function Chip({ label, onRemove }) {
@@ -123,7 +126,15 @@ function ChoiceGroup({ name, label, options, value, onChange, error, columns = '
     );
 }
 
-export default function ProjectFormModal({ open, isSubmitting = false, onSubmit, onClose }) {
+export default function ProjectFormModal({
+    open,
+    mode = 'create',
+    project = null,
+    isSubmitting = false,
+    onSubmit,
+    onClose
+}) {
+    const isEdit = mode === 'edit';
     const [form, setForm] = useState(EMPTY_PROJECT_FORM);
     const [errors, setErrors] = useState({});
     const [isPreparingImage, setIsPreparingImage] = useState(false);
@@ -137,14 +148,15 @@ export default function ProjectFormModal({ open, isSubmitting = false, onSubmit,
         previewUrl.current = null;
     };
 
-    // Start clean every time it opens, so a cancelled draft doesn't come back on the next open.
+    // Reload every time it opens: a cancelled draft must not come back on the next open, and
+    // editing a second project must not inherit the first one's values.
     useEffect(() => {
         if (!open) return;
         releasePreview();
-        setForm(EMPTY_PROJECT_FORM);
+        setForm(isEdit ? projectToForm(project) : EMPTY_PROJECT_FORM);
         setErrors({});
         setIsDragging(false);
-    }, [open]);
+    }, [open, isEdit, project]);
 
     // Release the last preview when the dialog leaves the tree entirely.
     useEffect(() => releasePreview, []);
@@ -191,7 +203,10 @@ export default function ProjectFormModal({ open, isSubmitting = false, onSubmit,
         if (!form.status) next.status = 'Please choose a status.';
         if (form.tags.length === 0) next.tags = 'Add at least one tag.';
         if (form.members.length === 0) next.members = 'Add at least one team member.';
-        if (!form.image) next.image = 'A project image is required.';
+        // Only on create. An edit that picks no file keeps the image already stored, which is
+        // what PUT /api/projects/:id does with an omitted `image` - re-uploading a megabyte to
+        // fix a typo in the title would be absurd.
+        if (!isEdit && !form.image) next.image = 'A project image is required.';
 
         const link = form.links.trim();
         if (!link) {
@@ -211,16 +226,22 @@ export default function ProjectFormModal({ open, isSubmitting = false, onSubmit,
         if (isSubmitting || isPreparingImage) return;
         if (!validate()) return;
 
-        onSubmit({
+        const payload = {
             name: form.name.trim(),
             description: form.description.trim(),
             category_id: form.category_id,
             status: form.status,
             tags: form.tags,
             members: form.members,
-            links: form.links.trim(),
-            image: form.image.dataUrl
-        });
+            links: form.links.trim()
+        };
+
+        // Sent only when a file was actually picked. On an edit with no new image the key is
+        // absent entirely, which is the signal to keep the stored picture - sending null or ''
+        // would instead be read as an invalid image and rejected.
+        if (form.image) payload.image = form.image.dataUrl;
+
+        onSubmit(payload);
     };
 
     const dropZoneState = isDragging
@@ -237,9 +258,13 @@ export default function ProjectFormModal({ open, isSubmitting = false, onSubmit,
         >
             <div className="p-4 sm:p-6 border-b border-usb-rule flex justify-between items-center shrink-0">
                 <div>
-                    <h2 className="font-heading font-bold text-2xl text-usb-charcoal">Post a Project</h2>
+                    <h2 className="font-heading font-bold text-2xl text-usb-charcoal">
+                        {isEdit ? 'Edit Project' : 'Post a Project'}
+                    </h2>
                     <p className="font-body text-sm text-usb-muted mt-0.5">
-                        Reviewed automatically — approved posts go live straight away.
+                        {isEdit
+                            ? 'Edits are reviewed the same way posts are — approved changes go live straight away.'
+                            : 'Reviewed automatically — approved posts go live straight away.'}
                     </p>
                 </div>
                 <button
@@ -280,9 +305,13 @@ export default function ProjectFormModal({ open, isSubmitting = false, onSubmit,
                     />
 
                     <div>
-                        <Label htmlFor="image-upload" required>
+                        <Label htmlFor="image-upload" required={!isEdit}>
                             Project Image
-                            <span className="font-normal text-usb-muted"> (a screenshot, logo or photo)</span>
+                            <span className="font-normal text-usb-muted">
+                                {isEdit
+                                    ? ' (upload a new one only if you want to replace it)'
+                                    : ' (a screenshot, logo or photo)'}
+                            </span>
                         </Label>
 
                         {form.image ? (
@@ -303,6 +332,38 @@ export default function ProjectFormModal({ open, isSubmitting = false, onSubmit,
                                 <Button type="button" variant="ghost" size="sm" lift={false} onClick={clearImage}>
                                     Replace
                                 </Button>
+                            </div>
+                        ) : isEdit && project ? (
+                            /* Editing, with no new file picked. The bytes aren't in the board's
+                               JSON, so the stored picture is shown from the image endpoint - the
+                               same URL the card renders - rather than left as an empty drop zone
+                               that reads as "this project has no image". */
+                            <div className="flex items-center gap-4 p-4 rounded-lg border border-usb-border bg-usb-zebra">
+                                <div className="w-20 h-20 shrink-0 rounded-lg bg-white border border-usb-rule overflow-hidden flex items-center justify-center">
+                                    <img src={projectImageUrl(project)} alt="" className="max-w-full max-h-full object-contain" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-body text-sm font-semibold text-usb-charcoal">Current image</p>
+                                    <p className="font-body text-xs text-usb-muted mt-0.5">
+                                        Kept as it is unless you choose a new one.
+                                    </p>
+                                </div>
+                                <input
+                                    id="image-upload"
+                                    type="file"
+                                    accept="image/*"
+                                    className="sr-only"
+                                    onChange={(e) => handleFile(e.target.files?.[0])}
+                                />
+                                {/* A label rather than a Button: it has to drive the file input,
+                                    and a <button> wrapping one can't. Styled to match the ghost
+                                    Button beside it in the picked-image state above. */}
+                                <label
+                                    htmlFor="image-upload"
+                                    className="shrink-0 inline-flex items-center justify-center rounded-md px-3 py-1.5 font-body text-sm font-semibold text-usb-charcoal border border-usb-border bg-white hover:bg-usb-zebra transition-colors cursor-pointer"
+                                >
+                                    {isPreparingImage ? 'Preparing...' : 'Replace'}
+                                </label>
                             </div>
                         ) : (
                             <div
@@ -414,7 +475,7 @@ export default function ProjectFormModal({ open, isSubmitting = false, onSubmit,
                         Cancel
                     </Button>
                     <Button type="submit" size="sm" disabled={isSubmitting || isPreparingImage}>
-                        {isSubmitting ? 'Reviewing...' : 'Post Project'}
+                        {isSubmitting ? 'Reviewing...' : isEdit ? 'Save Changes' : 'Post Project'}
                     </Button>
                 </div>
             </form>

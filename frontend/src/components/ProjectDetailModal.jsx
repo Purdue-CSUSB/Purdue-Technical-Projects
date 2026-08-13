@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExternalLink, Users, FolderOpen, Activity } from 'lucide-react';
+import { ExternalLink, Users, FolderOpen, Activity, Pencil, Trash2 } from 'lucide-react';
 import ModalShell from './ui/ModalShell.jsx';
 import Button from './ui/Button.jsx';
 import { getCategoryLabel, getStatusLabel, projectImageUrl } from '../lib/projectFields.js';
@@ -35,7 +35,7 @@ const Fact = ({ icon, label, value }) => (
   </div>
 );
 
-export default function ProjectDetailModal({ project, onClose }) {
+export default function ProjectDetailModal({ project, canManage = false, onClose, onEdit, onDelete }) {
   const [imageFailed, setImageFailed] = useState(false);
 
   if (!project) return null;
@@ -123,6 +123,32 @@ export default function ProjectDetailModal({ project, onClose }) {
       </div>
 
       <div className="p-5 sm:p-6 flex justify-end gap-3 border-t border-usb-rule shrink-0 bg-white">
+        {/* Left-aligned, away from Close and Visit: destructive and edit actions shouldn't sit
+            under the thumb that's reaching for the safe button. */}
+        {canManage && (
+          <div className="mr-auto flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              lift={false}
+              onClick={() => onEdit(project)}
+              title="Edit this project"
+              aria-label={`Edit ${project.name}`}
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              lift={false}
+              onClick={() => onDelete(project)}
+              title="Remove this project"
+              aria-label={`Delete ${project.name}`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
         <Button variant="neutral" size="sm" onClick={onClose}>
           Close
         </Button>

@@ -8,11 +8,12 @@ import ProjectCard from '../components/ProjectCard.jsx';
 import ProjectDetailModal from '../components/ProjectDetailModal.jsx';
 import ProjectFormModal from '../components/ProjectFormModal.jsx';
 import ResultModal from '../components/ResultModal.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 import Button from '../components/ui/Button.jsx';
 import PageHeader, { PageShell } from '../components/ui/PageHeader.jsx';
 import { fadeUp } from '../components/ui/motion.js';
 import { PROJECT_CATEGORIES, SHOWCASE_LIMIT } from '../config.js';
-import { getProjects, submitProject } from '../services/api.js';
+import { getProjects, submitProject, updateProject } from '../services/api.js';
 import { CACHE_KEYS, isStale, readCache, revalidate, writeCache } from '../lib/apiCache.js';
 
 const ALL = 'all';
@@ -38,14 +39,37 @@ export default function ProjectsPage() {
     const [selectedCategory, setSelectedCategory] = useState(ALL);
     const [searchQuery, setSearchQuery] = useState('');
     const [viewingProject, setViewingProject] = useState(null);
-    const [isFormOpen, setIsFormOpen] = useState(false);
+    // null when closed; otherwise { mode: 'create' } or { mode: 'edit', project }. One piece of
+    // state rather than an isOpen flag plus a separate "which project", which could disagree.
+    const [formState, setFormState] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [pendingDelete, setPendingDelete] = useState(null);
     const [result, setResult] = useState(null);
 
-    // The caller's own posts, only to know whether they are at the cap. Deleting one happens on
-    // the account page, so unlike the open board this isn't used for per-card controls.
+    // The caller's own posts: what the cap is measured against, and what says whether a given
+    // card on the board is theirs to edit or remove.
     const [myProjects, setMyProjects] = useState(() => readCache(myKey)?.data ?? []);
     const atLimit = isAuthenticated && !isAdmin && myProjects.length >= SHOWCASE_LIMIT;
+
+    // Admins can manage anything; everyone else only what they posted. The server enforces this
+    // independently in api/projects/[id].js - hiding the buttons is a courtesy, not the control.
+    const myIds = useMemo(() => new Set(myProjects.map((project) => project._id)), [myProjects]);
+    const canManage = (project) => isAuthenticated && (isAdmin || myIds.has(project._id));
+
+    // Keeps the public board, the caller's own list and both caches in step after an edit or a
+    // delete, so returning to the board shows it as the user just left it.
+    const applyChange = (updateList) => {
+        setProjects((current) => {
+            const next = updateList(current);
+            writeCache(CACHE_KEYS.projects, next);
+            return next;
+        });
+        setMyProjects((current) => {
+            const next = updateList(current);
+            writeCache(myKey, next);
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (!isStale(readCache(CACHE_KEYS.projects))) return;
@@ -122,7 +146,50 @@ export default function ProjectsPage() {
             });
             return;
         }
-        setIsFormOpen(true);
+        setFormState({ mode: 'create' });
+    };
+
+    // The cap is a limit on posting, not on fixing what you already posted, so editing is never
+    // gated on it the way openForm is.
+    const handleOpenEdit = (project) => {
+        setViewingProject(null);
+        setFormState({ mode: 'edit', project });
+    };
+
+    const handleRequestDelete = (project) => setPendingDelete(project);
+
+    const confirmDelete = async () => {
+        const project = pendingDelete;
+        setPendingDelete(null);
+        if (!project) return;
+
+        // Remove it from the board straight away rather than after the round trip. A cold
+        // serverless function can take a second, and waiting on it before starting the
+        // animation leaves the user staring at the card they just confirmed away.
+        const previousAll = projects;
+        const previousMine = myProjects;
+        applyChange((list) => list.filter((p) => p._id !== project._id));
+        setViewingProject((current) => (current && current._id === project._id ? null : current));
+
+        try {
+            const response = await authFetch(`/api/projects/${project._id}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || 'Failed to remove project.');
+            }
+        } catch (error) {
+            console.error('Delete Error:', error);
+            // The delete didn't happen, so put the project back exactly where it was.
+            setProjects(previousAll);
+            writeCache(CACHE_KEYS.projects, previousAll);
+            setMyProjects(previousMine);
+            writeCache(myKey, previousMine);
+            setResult({
+                type: 'error',
+                title: 'Delete Failed',
+                message: error.message || 'Failed to remove project.'
+            });
+        }
     };
 
     // Honour ?post=1 once, then strip it: without that, a refresh (or a back-navigation) would
@@ -137,44 +204,54 @@ export default function ProjectsPage() {
     }, [searchParams, isAuthenticated, atLimit]);
 
     const handleSubmit = async (formData) => {
+        const isEdit = formState?.mode === 'edit';
+        const editing = formState?.project;
         setIsSubmitting(true);
-        try {
-            const saved = await submitProject(authFetch, formData);
 
-            // Splice the saved document straight into the board and the cache, so the project
-            // is on screen the moment the dialog closes rather than after the cache's minute
+        try {
+            const saved = isEdit
+                ? await updateProject(authFetch, editing._id, formData)
+                : await submitProject(authFetch, formData);
+
+            // Splice the saved document straight into the board and the cache, so the change is
+            // on screen the moment the dialog closes rather than after the cache's minute
             // lapses. The API echoes it back specifically so this has the real _id to render an
             // <img src="/api/projects/:id/image"> against.
             if (saved?.project) {
-                setProjects((current) => {
-                    const next = [saved.project, ...current];
-                    writeCache(CACHE_KEYS.projects, next);
-                    return next;
-                });
-                setMyProjects((current) => {
-                    const next = [saved.project, ...current];
-                    writeCache(myKey, next);
-                    return next;
-                });
+                if (isEdit) {
+                    applyChange((list) =>
+                        list.map((p) => (p._id === saved.project._id ? { ...p, ...saved.project } : p))
+                    );
+                } else {
+                    applyChange((list) => [saved.project, ...list]);
+                }
             }
 
-            setIsFormOpen(false);
-            setResult({
-                type: 'success',
-                title: 'Project Posted!',
-                message: 'Your project passed review and is now live on the showcase.'
-            });
+            setFormState(null);
+            setResult(
+                isEdit
+                    ? {
+                        type: 'success',
+                        title: 'Project Updated',
+                        message: 'Your changes passed review and are live on the showcase.'
+                    }
+                    : {
+                        type: 'success',
+                        title: 'Project Posted!',
+                        message: 'Your project passed review and is now live on the showcase.'
+                    }
+            );
         } catch (error) {
             // A moderation rejection is the submitter's to fix and deserves an explanation.
             // Anything else is ours, and the API's own message is the more useful one.
             const message = error.stage === 'moderation'
-                ? "Your project didn't pass our automated review. Please make sure it's a real, specific project with a clear description, then try again."
+                ? `Your ${isEdit ? 'changes didn’t' : 'project didn’t'} pass our automated review. Please make sure it's a real, specific project with a clear description, then try again.`
                 : (error.message || 'Something went wrong. Please try again.');
 
             setResult({
                 type: 'error',
                 title: error.stage === 'moderation'
-                    ? 'Submission Not Approved'
+                    ? (isEdit ? 'Changes Not Approved' : 'Submission Not Approved')
                     : error.stage === 'limit' ? 'Project Limit Reached' : 'Something Went Wrong',
                 message
             });
@@ -279,7 +356,10 @@ export default function ProjectsPage() {
                                         key={project._id}
                                         project={project}
                                         index={index}
+                                        canManage={canManage(project)}
                                         onView={setViewingProject}
+                                        onEdit={handleOpenEdit}
+                                        onDelete={handleRequestDelete}
                                     />
                                 ))}
                             </AnimatePresence>
@@ -288,16 +368,33 @@ export default function ProjectsPage() {
                 </div>
             </section>
 
-            <ProjectDetailModal project={viewingProject} onClose={() => setViewingProject(null)} />
+            <ProjectDetailModal
+                project={viewingProject}
+                canManage={viewingProject ? canManage(viewingProject) : false}
+                onClose={() => setViewingProject(null)}
+                onEdit={handleOpenEdit}
+                onDelete={handleRequestDelete}
+            />
 
             <ProjectFormModal
-                open={isFormOpen}
+                open={formState !== null}
+                mode={formState?.mode ?? 'create'}
+                project={formState?.project ?? null}
                 isSubmitting={isSubmitting}
                 onSubmit={handleSubmit}
-                onClose={() => setIsFormOpen(false)}
+                onClose={() => setFormState(null)}
             />
 
             <ResultModal result={result} onClose={() => setResult(null)} />
+
+            <ConfirmModal
+                open={pendingDelete !== null}
+                title="Delete This Project?"
+                message="This will permanently remove it from the showcase. This can't be undone."
+                confirmLabel="Delete"
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
         </>
     );
 }
