@@ -1,6 +1,30 @@
 {
   "clubs": [
     {
+      "name":"Purdue Stack",
+      "description": "Stack is Purdue's premier software engineering organization. Each semester, we partner with companies to provide student members the opportunity to work on projects for those companies. Additionally, we host speaker events, workshops, and cross-club collaborations.\n\nReal clients, real deadlines — we ship software that reaches real users. Members connect with like-minded builders, mentors, and industry professionals, and learn from engineers, founders, and leaders at the companies you want to work at.",
+      "image": "club images/PurdueStack.png",
+      "links": "https://www.purduestack.org/"
+    },
+    {
+      "name":"Hack The Future",
+      "description": "Creating Software for Nonprofits\nHack the Future is a student organization at Purdue aimed towards creating software for local nonprofits. We develop several projects throughout the school year with various different nonprofits with the hopes of bettering the community.\n\nWe are actively involved with the community and provide software development services at no cost to nonprofits! Hack the Future is comprised of students all working together to develop amazing projects.\n\n",
+      "image": "club images/HTF.png",
+      "links": "https://htfpurdue.org/"
+    },
+    {
+      "name":"Build Purdue",
+      "description": "buildpurdue is Purdue University's student-run entrepreneurship community. Go from idea to launch with our cohort program, Nightshift co-working sessions, and founder events at Purdue.\n\nWhether you're still sketching out a concept or already shipping to users, buildpurdue is where Purdue's founders find their people.",
+      "image": "club images/BuildPurdue.png",
+      "links": "https://www.buildpurdue.org/"
+    },
+    {
+      "name":"Humanoid Robot Club",
+      "description": "Small Step for a Robot. Giant Leap for Robotics.\nThe Humanoid Robot Club is building NEMO, a humanoid robot, with the vision of being the first group of students to build a humanoid robot that goes to space and does what an astronaut and a rover can and cannot do.\n\nNEMO runs 18 actuators with 12 degrees of freedom across its legs, driven by a deep reinforcement learning control stack built with MuJoCo and JAX and deployed on ROS2. In December 2025 it took its first steps on the ground, moving the project out of simulation and into the real world.\n\nWith 1500+ members, the club also runs StarkHacks, the world's largest hardware hackathon.",
+      "image": "club images/HumanoidRobotClub.png",
+      "links": "https://www.humanoidrobot.club/"
+    },
+    {
       "name":"Boiler Exams",
       "description": "Boilerexams was founded in 2020 by two Purdue freshmen who saw a need for a studying platform to help students adapt to the college exam environment. The first iteration was built in a few weeks over the summer and deployed for the first midterm cycle of fall 2020. It grew in popularity over the years, but its hastily designed site limited the founders’ ability to expand. In the spring of 2023, they began recruiting a team for a full redesign. Now, with a fresh new look, Boilerexams is better than ever. Enjoy new courses, better statistics, and the smoothest studying experience we could dream up.",
       "image": "club images/Boiler-Exams.jpeg",
@@ -17,12 +41,6 @@
       "description": "Letter from the devs: \nHi. We’re college students who made BoilerBookings.com to make it easier to travel home for breaks. After people actually started using it, we brought on nine chillers to help.\n\nBooking trips with shuttles is already hard enough. But then, we noticed that airlines try to squeeze every dollar out of us with erratic prices.\n\nAs broke college students (and a bunch of CS majors) we made Jumpseat to solve these problems. Hopefully, it helps you out. If not, please email us to let us know.\n\n",
       "image": "club images/BoilerBookings.png",
       "links": "https://purdue.jumpseatapp.com/"
-    },
-    {
-      "name":"Hack The Future",
-      "description": "Creating Software for Nonprofits\nHack the Future is a student organization at Purdue aimed towards creating software for local nonprofits. We develop several projects throughout the school year with various different nonprofits with the hopes of bettering the community.\n\nWe are actively involved with the community and provide software development services at no cost to nonprofits! Hack the Future is comprised of students all working together to develop amazing projects.\n\n",
-      "image": "club images/HTF.png",
-      "links": "https://htfpurdue.org/"
     },
     {
       "name":"Autonomous Robot Club",

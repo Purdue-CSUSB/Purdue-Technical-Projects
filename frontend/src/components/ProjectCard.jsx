@@ -1,312 +1,139 @@
-import React from 'react';
-import { ExternalLinkIcon, UsersIcon, TagIcon, FolderIcon } from 'lucide-react';
+import { useState } from 'react';
+import { ExternalLink, Users } from 'lucide-react';
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
+import Button from './ui/Button.jsx';
+import { CARD_HOVER_SHADOW, HOVER_TRANSITION } from './ui/motion.js';
+import { getCategoryLabel, getStatusLabel, projectImageUrl } from '../lib/projectFields.js';
 
-export default function ProjectCard({ project }) {
-    const getStatusColor = (status) => {
-        return status === 'active' ? 'bg-blue-500' : 'bg-blue-800';
-    };
+// Landscape rather than portrait: image on the left, everything else beside it. The tall
+// stacked version worked in a grid but was badly wrong in the home page's scrolling strip - a
+// 320x576 card is most of the viewport's height for something meant to slide past, and five of
+// them in a row read as a column of billboards.
+//
+// Every card is still a FIXED height so a grid row can't be stretched by whichever description
+// happens to be longest; overflow is clamped and the full text lives behind "View details".
+const CARD_HEIGHT = 'h-64';
 
-    const getStatusText = (status) => {
-        return status === 'active' ? 'Active' : 'Completed';
-    };
+const MAX_VISIBLE_TAGS = 3;
 
-    const getCategoryText = (categoryId) => {
-        switch (categoryId) {
-            case 'personal-project':
-                return 'Personal Project';
-            case 'class-project':
-                return 'Class Project';
-            case 'hackathon':
-                return 'Hackathon Project';
-            default:
-                return 'Other Project';
-        }
-    };
+// Projects posted before images were required have none, and a broken-image glyph on an
+// otherwise finished card looks like a bug rather than an absence.
+function ProjectImage({ project }) {
+  const [failed, setFailed] = useState(false);
 
-    return (
-        <motion.div 
-            className="bg-black/40 rounded-lg p-4 md:p-6 border border-gray-700 hover:border-blue-500/50 transition-all duration-300"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileHover={{ 
-                y: -10,
-                scale: 1.015,
-                transition: {
-                    type: "tween",
-                    duration: 0.15,
-                    ease: [0.4, 0, 0.2, 1]
-                }
-            }}
-            transition={{ 
-                type: "tween",
-                duration: 0.1,
-                ease: [0.4, 0, 0.2, 1]
-            }}
-            style={{ willChange: "transform" }}
+  return (
+    <div className="w-40 sm:w-48 shrink-0 h-full bg-usb-zebra border-r border-usb-rule flex items-center justify-center overflow-hidden">
+      {failed ? (
+        <span className="font-heading text-[10px] font-bold uppercase tracking-wide text-usb-muted text-center px-2">
+          No image
+        </span>
+      ) : (
+        <img
+          src={projectImageUrl(project)}
+          alt={project.name}
+          // Cards below the fold shouldn't cost a request until they're scrolled to.
+          loading="lazy"
+          decoding="async"
+          // contain, not cover: submissions are as often a logo or a screenshot as a photo, and
+          // cropping either one to fill the panel cuts off the part that identifies the project.
+          className="max-w-full max-h-full object-contain p-3"
+          onError={() => setFailed(true)}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function ProjectCard({ project, index = 0, onView }) {
+  const tags = project.tags ?? [];
+  const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
+  const hiddenTagCount = tags.length - visibleTags.length;
+  const members = project.members ?? [];
+  const isActive = project.status === 'active';
+
+  return (
+    <motion.article
+      // `layout` makes the remaining cards glide into their new positions when the filters
+      // change, instead of snapping.
+      layout
+      // p-0 + overflow-hidden so the image panel runs to the card's own rounded edge rather
+      // than floating inside a padded box.
+      className={`bg-white border border-usb-border rounded-2xl shadow-md overflow-hidden flex ${CARD_HEIGHT}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2, ease: 'easeInOut' } }}
+      transition={{ duration: 0.35, ease: 'easeOut', delay: (index % 6) * 0.05 }}
+      whileHover={{ scale: 1.02, boxShadow: CARD_HOVER_SHADOW, transition: HOVER_TRANSITION }}
+      style={{ willChange: 'transform, box-shadow' }}
+    >
+      <ProjectImage project={project} />
+
+      {/* min-w-0 is what lets the truncate/line-clamp below actually bite: without it a flex
+          child refuses to shrink under its content's intrinsic width. */}
+      <div className="flex-1 min-w-0 flex flex-col p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-2 shrink-0">
+          <h2 className="min-w-0 font-heading font-bold text-lg text-usb-charcoal line-clamp-1" title={project.name}>
+            {project.name}
+          </h2>
+          {/* Gold for a live project, outlined for a finished one. */}
+          <span
+            className={`shrink-0 font-body text-[11px] font-semibold px-2 py-0.5 rounded-md whitespace-nowrap ${
+              isActive
+                ? 'bg-usb-gold text-usb-charcoal'
+                : 'bg-white text-usb-muted border border-usb-border'
+            }`}
+          >
+            {getStatusLabel(project.status)}
+          </span>
+        </div>
+
+        <p className="mt-2 h-10 overflow-hidden font-body text-sm text-usb-charcoal leading-snug line-clamp-2 shrink-0">
+          {project.description}
+        </p>
+
+        <button
+          type="button"
+          onClick={() => onView(project)}
+          className="self-start mt-2.5 shrink-0 font-body text-sm font-semibold text-usb-charcoal underline hover:text-black cursor-pointer"
         >
-            <div className="flex flex-col md:flex-row gap-4 md:gap-6">
-                <div className="flex-shrink-0 mx-auto md:mx-0">
-                    <img
-                        src={`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/projects/${project._id}/image`}
-                        alt={project.name}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full md:w-80 h-80 md:h-80 object-contain rounded-lg bg-gray-800/50 p-2"
-                        onError={(e) => {
-                            // Hide broken images gracefully
-                            e.target.style.display = 'none';
-                        }}
-                        onLoad={(e) => {
-                            // Ensure image is visible when loaded
-                            e.target.style.display = 'block';
-                        }}
-                    />
-                </div>
-                
-                <div className="flex-1">
-                    <motion.div 
-                        className="flex flex-col sm:flex-row items-start sm:justify-between gap-2 sm:gap-0 mb-4"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.05, duration: 0.15 }}
-                    >
-                        <h3 className="text-xl md:text-2xl font-bold text-white">{project.name}</h3>
-                        <motion.div 
-                            className="flex items-center gap-2"
-                            whileHover={{ scale: 1.1 }}
-                            transition={{ duration: 0.2 }}
-                        >
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium text-white ${getStatusColor(project.status)}`}>
-                                {getStatusText(project.status)}
-                            </span>
-                        </motion.div>
-                    </motion.div>
-                    
-                    <motion.div 
-                        className="mb-4"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.08, duration: 0.15 }}
-                    >
-                        <p className="text-gray-300 leading-relaxed">
-                            {project.description}
-                        </p>
-                    </motion.div>
+          View details
+        </button>
 
-                    <motion.div 
-                        className="mb-4"
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.1, duration: 0.15 }}
-                    >
-                        <div className="flex items-center gap-2 mb-2">
-                            <motion.div
-                                whileHover={{ 
-                                    rotate: 360,
-                                    scale: 1.2,
-                                    transition: { 
-                                        type: "tween",
-                                        duration: 0.15,
-                                        ease: [0.4, 0, 0.2, 1]
-                                    }
-                                }}
-                                transition={{ 
-                                    type: "tween",
-                                    duration: 0.1,
-                                    ease: [0.4, 0, 0.2, 1]
-                                }}
-                                style={{ willChange: "transform" }}
-                            >
-                                <TagIcon className="w-4 h-4 text-blue-500" />
-                            </motion.div>
-                            <span className="text-sm font-medium text-blue-500">Tags:</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {project.tags.map((tag, index) => (
-                                <motion.span 
-                                    key={index} 
-                                    className="px-2 py-1 bg-blue-700/30 text-blue-300 text-xs rounded-md cursor-default"
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 0.12 + index * 0.03, duration: 0.15 }}
-                                    whileHover={{ 
-                                        scale: 1.1, 
-                                        backgroundColor: "rgba(59, 130, 246, 0.5)",
-                                        transition: {
-                                            type: "tween",
-                                            duration: 0.15,
-                                            ease: [0.4, 0, 0.2, 1]
-                                        }
-                                    }}
-                                    transition={{ 
-                                        type: "tween",
-                                        duration: 0.1,
-                                        ease: [0.4, 0, 0.2, 1]
-                                    }}
-                                    style={{ willChange: "transform" }}
-                                >
-                                    {tag}
-                                </motion.span>
-                            ))}
-                        </div>
-                    </motion.div>
+        {/* items-start: the row is a fixed height so cards stay even, and a flex container defaults
+            to align-items: stretch, which was inflating every chip to the full row height. */}
+        <div className="flex flex-wrap items-center gap-1.5 h-7 overflow-hidden mt-3.5 shrink-0">
+          {visibleTags.map((tag) => (
+            <span key={tag} className="px-2.5 py-0.5 bg-gray-100 font-body text-[11px] leading-5 rounded-full text-usb-charcoal truncate max-w-[9rem]">
+              {tag}
+            </span>
+          ))}
+          {hiddenTagCount > 0 && (
+            <span className="font-body text-[11px] leading-5 font-semibold text-usb-muted whitespace-nowrap">
+              +{hiddenTagCount} more
+            </span>
+          )}
+        </div>
 
-                    <motion.div 
-                        className="mb-4"
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.15, duration: 0.15 }}
-                    >
-                        <div className="flex items-center gap-2 mb-2">
-                            <motion.div
-                                whileHover={{ 
-                                    scale: 1.3,
-                                    rotate: 15,
-                                    transition: { 
-                                        type: "tween",
-                                        duration: 0.15,
-                                        ease: [0.4, 0, 0.2, 1]
-                                    }
-                                }}
-                                transition={{ 
-                                    type: "tween",
-                                    duration: 0.1,
-                                    ease: [0.4, 0, 0.2, 1]
-                                }}
-                                style={{ willChange: "transform" }}
-                            >
-                                <UsersIcon className="w-4 h-4 text-blue-300" />
-                            </motion.div>
-                            <span className="text-sm font-medium text-blue-300">Members:</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {project.members.map((member, index) => (
-                                <motion.span 
-                                    key={index} 
-                                    className="px-2 py-1 bg-blue-400/20 text-blue-100 text-xs rounded-md cursor-default"
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 0.18 + index * 0.03, duration: 0.15 }}
-                                    whileHover={{ 
-                                        scale: 1.1, 
-                                        backgroundColor: "rgba(96, 165, 250, 0.3)",
-                                        transition: {
-                                            type: "tween",
-                                            duration: 0.15,
-                                            ease: [0.4, 0, 0.2, 1]
-                                        }
-                                    }}
-                                    transition={{ 
-                                        type: "tween",
-                                        duration: 0.1,
-                                        ease: [0.4, 0, 0.2, 1]
-                                    }}
-                                    style={{ willChange: "transform" }}
-                                >
-                                    {member}
-                                </motion.span>
-                            ))}
-                        </div>
-                    </motion.div>
+        {/* Absorbs whatever slack is left, so the footer sits on the bottom edge of every card. */}
+        <div className="flex-grow" />
 
-                    <motion.div 
-                        className="mb-4"
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2, duration: 0.15 }}
-                    >
-                        <div className="flex items-center gap-2 mb-2">
-                            <motion.div
-                                whileHover={{ 
-                                    rotate: 20,
-                                    scale: 1.2,
-                                    transition: { 
-                                        type: "tween",
-                                        duration: 0.15,
-                                        ease: [0.4, 0, 0.2, 1]
-                                    }
-                                }}
-                                transition={{ 
-                                    type: "tween",
-                                    duration: 0.1,
-                                    ease: [0.4, 0, 0.2, 1]
-                                }}
-                                style={{ willChange: "transform" }}
-                            >
-                                <FolderIcon className="w-4 h-4 text-blue-500" />
-                            </motion.div>
-                            <span className="text-sm font-medium text-blue-300">Category:</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <motion.span 
-                                className="px-2 py-1 bg-blue-700/30 text-blue-300 text-xs rounded-md"
-                                whileHover={{ 
-                                    scale: 1.1,
-                                    transition: {
-                                        type: "tween",
-                                        duration: 0.15,
-                                        ease: [0.4, 0, 0.2, 1]
-                                    }
-                                }}
-                                transition={{ 
-                                    type: "tween",
-                                    duration: 0.1,
-                                    ease: [0.4, 0, 0.2, 1]
-                                }}
-                            >
-                                {getCategoryText(project.category_id)}
-                            </motion.span>
-                        </div>
-                    </motion.div>
-                </div>
-            </div>
-            
-            <motion.div 
-                className="flex justify-center sm:justify-end mt-4 sm:mt-0"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.22, duration: 0.15 }}
-            >
-                <motion.a
-                    href={project.links}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-6 py-3 bg-black/60 hover:bg-black/80 border border-blue-500/30 hover:border-blue-400/60 text-blue-300 hover:text-blue-200 rounded-xl backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20 group w-full sm:w-auto justify-center"
-                    whileHover={{ 
-                        scale: 1.05,
-                        y: -3,
-                        transition: {
-                            type: "tween",
-                            duration: 0.15,
-                            ease: [0.4, 0, 0.2, 1]
-                        }
-                    }}
-                    whileTap={{ 
-                        scale: 0.97,
-                        transition: {
-                            type: "tween",
-                            duration: 0.1,
-                            ease: [0.4, 0, 0.2, 1]
-                        }
-                    }}
-                    transition={{ 
-                        type: "tween",
-                        duration: 0.1,
-                        ease: [0.4, 0, 0.2, 1]
-                    }}
-                    style={{ willChange: "transform" }}
-                >
-                    <span className="font-medium">Visit Project</span>
-                    <motion.div
-                        animate={{ x: [0, 2, 0] }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                        style={{ willChange: "transform" }}
-                    >
-                        <ExternalLinkIcon className="w-4 h-4 ml-2 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200" />
-                    </motion.div>
-                </motion.a>
-            </motion.div>
-        </motion.div>
-    );
+        <div className="border-t border-usb-rule pt-3 shrink-0 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 font-body text-xs text-usb-muted truncate" title={members.join(', ')}>
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{members.join(', ') || 'Team not listed'}</span>
+            </p>
+            <span className="block font-heading text-[10px] font-bold uppercase tracking-wide text-usb-muted mt-0.5">
+              {getCategoryLabel(project.category_id)}
+            </span>
+          </div>
+          <Button href={project.links} target="_blank" rel="noopener noreferrer" size="sm" lift="subtle" className="shrink-0">
+            Visit
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+    </motion.article>
+  );
 }

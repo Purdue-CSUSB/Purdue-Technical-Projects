@@ -1,31 +1,102 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@keyframes scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
+/* Brand tokens lifted from the main USB site (purdueusb.com), and identical to the ones the USB
+   Research Resources site uses - the three are meant to read as one family. Declared in an
+   @theme block rather than a tailwind.config.js because this is Tailwind v4: a JS config is no
+   longer auto-loaded, so tokens defined there emit no CSS at all. Everything here becomes a
+   real utility - bg-usb-gold, text-usb-charcoal, font-heading, and so on. */
+@theme {
+  /* The brand gold. Nav bar, footer, primary buttons, section gradients. */
+  --color-usb-gold: #FFCA44;
+  /* The real "black" of the design - body text, headings, and dark section backgrounds. */
+  --color-usb-charcoal: #333333;
+  /* Link text on gold surfaces. Black at 95% alpha, softer than pure #000. */
+  --color-usb-ink: #000000F2;
+  --color-usb-border: #9CA3AF;
+  --color-usb-rule: #E5E7EB;
+  --color-usb-zebra: #F9FAFB;
+  --color-usb-muted: #6B7280;
+  /* Page background. Warm off-white rather than #fff: cards are white, so a pure white page
+     left them with nothing to sit against and the whole thing read as one flat sheet. */
+  --color-usb-surface: #F8F7F3;
+
+  --font-heading: "Montserrat", system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --font-body: "Raleway", system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
 
-.animate-scroll {
-  animation: scroll 30s linear infinite;
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--color-usb-surface);
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-usb-charcoal);
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* The home page's continuously-scrolling project strip.
+   The track holds the same sequence twice and slides exactly -50%, so the moment the first copy
+   has fully left, the second is sitting precisely where the first began and the loop restarts
+   with no visible seam. Duration is set per-instance from the card count, which keeps the
+   apparent speed constant however many projects are on the board. */
+@keyframes ptp-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.marquee-track {
+  animation: ptp-marquee var(--marquee-duration, 40s) linear infinite;
+  /* Promoted to its own layer: without this the browser repaints the whole strip every frame. */
   will-change: transform;
 }
 
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* Cards dissolve at both edges instead of being sliced off at a hard line.
+   A mask rather than two background-coloured overlay gradients: the strip sits on the page's
+   two-tone gold/surface diagonal, and a single-colour fade can only ever match one of those
+   halves - over the other it reads as a pale smear. A mask fades the CONTENT to transparent, so
+   whatever is behind shows through and it is correct on any background. */
+.marquee {
+  --marquee-fade: 4rem;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--marquee-fade),
+    #000 calc(100% - var(--marquee-fade)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--marquee-fade),
+    #000 calc(100% - var(--marquee-fade)),
+    transparent
+  );
 }
 
-.line-clamp-4 {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* Hover deliberately does NOT pause the strip - it keeps sliding under the cursor. The cards
+   still respond on their own (they lift and cast a shadow via framer-motion on the article),
+   so the hover feedback is intact; only the halt is gone.
+
+   focus-within stays. That fires when somebody TABS into a card, and a keyboard user genuinely
+   cannot chase a moving target to reach "View details" - it costs mouse users nothing, since
+   focus doesn't follow the pointer. */
+.marquee:focus-within .marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Motion off entirely rather than slowed. The strip stays a horizontally scrollable row
+     (see the overflow-x on the container), so nothing becomes unreachable. */
+  .marquee-track {
+    animation: none;
+  }
 }

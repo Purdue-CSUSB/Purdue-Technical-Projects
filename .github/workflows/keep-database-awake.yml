@@ -1,0 +1,39 @@
+name: Keep Database Awake
+
+# Touches MongoDB once a day so Atlas never reaches its 30-day inactivity timeout. The logic
+# lives in backend/scripts/keepDatabaseAwake.js (see that file for why this is necessary and why
+# it goes through the public HTTP endpoint rather than a direct database connection).
+#
+# NOTE: scheduled workflows only fire from the default branch, so this file must be on `main`
+# to run at all. GitHub also auto-disables scheduled workflows on public repos after 60 days
+# with no NEW COMMITS - runs, issues and releases do not count.
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 08:00 UTC daily (~24h)
+  workflow_dispatch: {}    # allow manual runs from the Actions tab
+
+permissions:
+  contents: read           # least privilege: this job never writes to the repo
+
+jobs:
+  ping:
+    name: Ping the database
+    runs-on: ubuntu-latest # Linux runner = 1x billing rate (free on public repos)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # Run from the repo root: this is an npm workspace, so the lockfile and the `keepalive`
+      # script both live there even though the script itself is in backend/scripts.
+      # --omit=dev skips the Vercel CLI and Vite, neither of which this needs.
+      - run: npm ci --omit=dev
+      - name: Ping the API so Atlas sees a connection
+        run: npm run keepalive
+        env:
+          # A repository *variable*, not a secret - the deployed URL is public. Set it at
+          # Settings -> Secrets and variables -> Actions -> Variables, e.g.
+          #   SITE_URL = https://purdue-technical-projects.vercel.app
+          SITE_URL: ${{ vars.SITE_URL }}

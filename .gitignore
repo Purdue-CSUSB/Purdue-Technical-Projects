@@ -1,27 +1,9 @@
-# Environment variables
+.vercel
 .env
-.env.local
-.env.development
-# Allow frontend/.env.production for GitHub Pages deployment
-backend/.env.production
-.env.test
-
-# OS files
+.env*
+!.env.example
+node_modules
+dist
 .DS_Store
-Thumbs.db
-
-# Editor directories
-.vscode/*
-!.vscode/extensions.json
-.idea/
-*.swp
-*.swo
-*~
-
-# Logs
-logs
+.idea
 *.log
-
-# Node modules
-node_modules/
-

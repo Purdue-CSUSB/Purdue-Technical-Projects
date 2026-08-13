@@ -1,251 +1,303 @@
-import React, {useEffect, useState} from "react";
-import { SearchIcon } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import ProjectCard from "../components/ProjectCard";
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Search } from 'lucide-react';
+// eslint-disable-next-line no-unused-vars
+import { AnimatePresence, motion } from 'framer-motion';
+import { useAuth } from '../context/useAuth.js';
+import ProjectCard from '../components/ProjectCard.jsx';
+import ProjectDetailModal from '../components/ProjectDetailModal.jsx';
+import ProjectFormModal from '../components/ProjectFormModal.jsx';
+import ResultModal from '../components/ResultModal.jsx';
+import Button from '../components/ui/Button.jsx';
+import PageHeader, { PageShell } from '../components/ui/PageHeader.jsx';
+import { fadeUp } from '../components/ui/motion.js';
+import { PROJECT_CATEGORIES, SHOWCASE_LIMIT } from '../config.js';
+import { getProjects, submitProject } from '../services/api.js';
+import { CACHE_KEYS, isStale, readCache, revalidate, writeCache } from '../lib/apiCache.js';
 
-import { getProjects } from "../services/api";
+const ALL = 'all';
+const filters = [{ value: ALL, label: 'All Projects' }, ...PROJECT_CATEGORIES];
+
+// Links elsewhere (the home page's hero, the account page's empty state) point at
+// /projects?post=1 so they land here with the form already open, rather than dropping somebody
+// on the board and leaving them to find the button.
+const POST_PARAM = 'post';
 
 export default function ProjectsPage() {
-    const [projects, setProjects] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [selectedCategory, setSelectedCategory] = useState('all');
+    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { isAuthenticated, isAdmin, user, authFetch } = useAuth();
+    const myKey = CACHE_KEYS.myProjects(user?.email);
+
+    // Seed from the cache so returning to the board renders the previous list on the first
+    // paint instead of flashing a spinner and re-querying the database.
+    const [projects, setProjects] = useState(() => readCache(CACHE_KEYS.projects)?.data ?? []);
+    // Only ever spins when there is nothing to show. A cached-but-stale board still renders
+    // straight away and the refetch below happens quietly underneath it.
+    const [loading, setLoading] = useState(() => !readCache(CACHE_KEYS.projects));
+    const [selectedCategory, setSelectedCategory] = useState(ALL);
     const [searchQuery, setSearchQuery] = useState('');
+    const [viewingProject, setViewingProject] = useState(null);
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [result, setResult] = useState(null);
+
+    // The caller's own posts, only to know whether they are at the cap. Deleting one happens on
+    // the account page, so unlike the open board this isn't used for per-card controls.
+    const [myProjects, setMyProjects] = useState(() => readCache(myKey)?.data ?? []);
+    const atLimit = isAuthenticated && !isAdmin && myProjects.length >= SHOWCASE_LIMIT;
 
     useEffect(() => {
-        const load = async () => {
-            try {
-                const res = await getProjects();
-                // Projects are already sorted by backend (newest first)
-                setProjects(res);
-            } catch (error) {
-                console.error("API Error:", error);
-                setProjects([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-        load();
+        if (!isStale(readCache(CACHE_KEYS.projects))) return;
+
+        let cancelled = false;
+        revalidate(CACHE_KEYS.projects, getProjects)
+            .then((data) => { if (!cancelled) setProjects(data); })
+            .catch((error) => console.error('Failed to load projects:', error))
+            .finally(() => { if (!cancelled) setLoading(false); });
+
+        return () => { cancelled = true; };
     }, []);
 
-    const getCategoryDisplayName = (categoryId) => {
-        switch (categoryId) {
-            case 'personal-project':
-                return 'Personal Projects';
-            case 'class-project':
-                return 'Class Projects';
-            case 'hackathon':
-                return 'Hackathon Projects';
-            default:
-                return 'All Projects';
+    const filteredProjects = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+
+        return projects.filter((project) => {
+            // `featured` is what moderation now sets on an approved submission, so this is the
+            // line between "on the board" and "not". Projects saved before the moderator
+            // existed are only here if somebody flipped the flag by hand, which is unchanged.
+            if (!project.featured) return false;
+            if (selectedCategory !== ALL && project.category_id !== selectedCategory) return false;
+            if (!query) return true;
+
+            // Optional-chained throughout: a document written before a field existed would
+            // otherwise throw here and blank the whole board rather than just missing a match.
+            return (
+                project.name?.toLowerCase().includes(query) ||
+                project.description?.toLowerCase().includes(query) ||
+                project.tags?.some((tag) => tag.toLowerCase().includes(query)) ||
+                project.members?.some((member) => member.toLowerCase().includes(query))
+            );
+        });
+    }, [projects, selectedCategory, searchQuery]);
+
+    const activeFilterLabel = filters.find((filter) => filter.value === selectedCategory)?.label ?? 'Projects';
+
+    // Load the caller's own posts, so the cap is known before they open the form.
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setMyProjects([]);
+            return;
+        }
+
+        const cached = readCache(myKey);
+        if (cached) setMyProjects(cached.data);
+        if (!isStale(cached)) return;
+
+        let cancelled = false;
+        revalidate(myKey, async () => {
+            const response = await authFetch('/api/projects/mine');
+            const data = await response.json();
+            if (!response.ok) throw new Error(data?.message || 'Failed to load your projects.');
+            return data;
+        })
+            .then((data) => { if (!cancelled) setMyProjects(data); })
+            .catch((error) => console.error('Failed to load your projects:', error));
+
+        return () => { cancelled = true; };
+    }, [isAuthenticated, authFetch, myKey]);
+
+    const openForm = () => {
+        if (!isAuthenticated) {
+            navigate('/login', { state: { from: '/projects?post=1' } });
+            return;
+        }
+        // Explain the cap on click rather than disabling the button. A greyed-out control tells
+        // you that you can't, but not why or what to do about it.
+        if (atLimit) {
+            setResult({
+                type: 'error',
+                title: 'Project Limit Reached',
+                message: `You've posted the maximum of ${SHOWCASE_LIMIT} projects. Delete one from your account to post another.`
+            });
+            return;
+        }
+        setIsFormOpen(true);
+    };
+
+    // Honour ?post=1 once, then strip it: without that, a refresh (or a back-navigation) would
+    // reopen a form the user had already closed.
+    useEffect(() => {
+        if (!searchParams.has(POST_PARAM)) return;
+        const next = new URLSearchParams(searchParams);
+        next.delete(POST_PARAM);
+        setSearchParams(next, { replace: true });
+        openForm();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams, isAuthenticated, atLimit]);
+
+    const handleSubmit = async (formData) => {
+        setIsSubmitting(true);
+        try {
+            const saved = await submitProject(authFetch, formData);
+
+            // Splice the saved document straight into the board and the cache, so the project
+            // is on screen the moment the dialog closes rather than after the cache's minute
+            // lapses. The API echoes it back specifically so this has the real _id to render an
+            // <img src="/api/projects/:id/image"> against.
+            if (saved?.project) {
+                setProjects((current) => {
+                    const next = [saved.project, ...current];
+                    writeCache(CACHE_KEYS.projects, next);
+                    return next;
+                });
+                setMyProjects((current) => {
+                    const next = [saved.project, ...current];
+                    writeCache(myKey, next);
+                    return next;
+                });
+            }
+
+            setIsFormOpen(false);
+            setResult({
+                type: 'success',
+                title: 'Project Posted!',
+                message: 'Your project passed review and is now live on the showcase.'
+            });
+        } catch (error) {
+            // A moderation rejection is the submitter's to fix and deserves an explanation.
+            // Anything else is ours, and the API's own message is the more useful one.
+            const message = error.stage === 'moderation'
+                ? "Your project didn't pass our automated review. Please make sure it's a real, specific project with a clear description, then try again."
+                : (error.message || 'Something went wrong. Please try again.');
+
+            setResult({
+                type: 'error',
+                title: error.stage === 'moderation'
+                    ? 'Submission Not Approved'
+                    : error.stage === 'limit' ? 'Project Limit Reached' : 'Something Went Wrong',
+                message
+            });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
-    const filteredProjects = projects.filter(project => {
-        // Only show featured projects
-        const featuredMatch = project.featured === true;
-        
-        // Filter by category
-        const categoryMatch = selectedCategory === 'all' || project.category_id === selectedCategory;
-        
-        // Filter by search query (name, tags, or description)
-        const searchMatch = searchQuery === '' || 
-            project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            project.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-        
-        return featuredMatch && categoryMatch && searchMatch;
-    });
-
-
     return (
-        <motion.div 
-            className="min-h-screen pt-20"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4 }}
-        >
-            <div className="max-w-6xl mx-auto px-6 py-12">
-                <motion.div 
-                    className="text-center mb-8"
-                    initial={{ opacity: 0, y: -30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.2 }}
-                >
-                    <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
-                        Purdue <span className="text-blue-400">Student Projects</span>
-                    </h1>
-                    <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
-                        Explore amazing projects created by Purdue students. 
-                        From personal projects to hackathon winners!
-                    </p>
-                    
-                    <motion.div 
-                        className="max-w-lg mx-auto"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5, delay: 0.3 }}
-                    >
-                        <div className="relative text-gray-300">
-                            <SearchIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5" />
-                            <input
-                                type="text"
-                                placeholder="Search by tags or keywords..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-12 pr-4 py-4 bg-black/40 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 backdrop-blur-sm transition-all duration-300"
-                            />
-                        </div>
-                    </motion.div>
-                </motion.div>
-
-                <motion.div 
+        <>
+            <PageShell width="max-w-4xl" className="!pb-2">
+                <PageHeader
+                    title="Purdue Student"
+                    accent="Projects"
+                    lead="Explore what Purdue students have built - from personal side projects to class work to hackathon winners. Every project here was posted by the people who made it."
                     className="mb-8"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.4 }}
-                >
-                    <div className="flex flex-wrap justify-center gap-4">
-                        <motion.button
-                            onClick={() => setSelectedCategory('all')}
-                            whileHover={{ 
-                                scale: 1.05,
-                                transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] }
-                            }}
-                            whileTap={{ 
-                                scale: 0.95,
-                                transition: { duration: 0.1, ease: [0.4, 0, 0.2, 1] }
-                            }}
-                            transition={{ 
-                                duration: 0.1, 
-                                ease: [0.4, 0, 0.2, 1] 
-                            }}
-                            style={{ willChange: "transform" }}
-                            className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
-                                selectedCategory === 'all'
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            }`}
-                        >
-                            All Projects
-                        </motion.button>
-                        <motion.button
-                            onClick={() => setSelectedCategory('personal-project')}
-                            whileHover={{ 
-                                scale: 1.05,
-                                transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] }
-                            }}
-                            whileTap={{ 
-                                scale: 0.95,
-                                transition: { duration: 0.1, ease: [0.4, 0, 0.2, 1] }
-                            }}
-                            transition={{ 
-                                duration: 0.1, 
-                                ease: [0.4, 0, 0.2, 1] 
-                            }}
-                            style={{ willChange: "transform" }}
-                            className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
-                                selectedCategory === 'personal-project'
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            }`}
-                        >
-                            Personal Projects
-                        </motion.button>
-                        <motion.button
-                            onClick={() => setSelectedCategory('class-project')}
-                            whileHover={{ 
-                                scale: 1.05,
-                                transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] }
-                            }}
-                            whileTap={{ 
-                                scale: 0.95,
-                                transition: { duration: 0.1, ease: [0.4, 0, 0.2, 1] }
-                            }}
-                            transition={{ 
-                                duration: 0.1, 
-                                ease: [0.4, 0, 0.2, 1] 
-                            }}
-                            style={{ willChange: "transform" }}
-                            className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
-                                selectedCategory === 'class-project'
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            }`}
-                        >
-                            Class Projects
-                        </motion.button>
-                        <motion.button
-                            onClick={() => setSelectedCategory('hackathon')}
-                            whileHover={{ 
-                                scale: 1.05,
-                                transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] }
-                            }}
-                            whileTap={{ 
-                                scale: 0.95,
-                                transition: { duration: 0.1, ease: [0.4, 0, 0.2, 1] }
-                            }}
-                            transition={{ 
-                                duration: 0.1, 
-                                ease: [0.4, 0, 0.2, 1] 
-                            }}
-                            style={{ willChange: "transform" }}
-                            className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
-                                selectedCategory === 'hackathon'
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            }`}
-                        >
-                            Hackathons
-                        </motion.button>
+                />
+
+                {/* Search and "Post a Project" are one control row, not a CTA parked above the
+                    page. Posting is a thing you do TO this board, so it belongs with the board's
+                    other controls - and at the same height and radius as the search field it
+                    reads as part of the furniture rather than an advert for itself. The row is
+                    the width of the two together, so nothing is centred against nothing. */}
+                <motion.div {...fadeUp(0, 0.15)} className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto">
+                    <div className="relative flex-1 min-w-0">
+                        <label htmlFor="project-search" className="sr-only">Search projects</label>
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-usb-muted pointer-events-none" />
+                        <input
+                            id="project-search"
+                            type="search"
+                            placeholder="Search by name, tag, member or keyword..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full rounded-lg border border-usb-border bg-white pl-12 pr-4 py-3 font-body text-base text-usb-charcoal placeholder:text-usb-muted outline-none transition-colors duration-200 focus:border-usb-gold focus:ring-2 focus:ring-usb-gold/40"
+                        />
                     </div>
+                    {/* Charcoal, matching the selected filter chip below: this row sits where the
+                        backdrop's gold wedge falls, and a gold button would blend into it.
+                        py-3 to match the input's height exactly, so the row has one baseline. */}
+                    <Button
+                        variant="darkGold"
+                        onClick={openForm}
+                        className="shrink-0 !py-3"
+                        title={isAuthenticated ? 'Post a project to the showcase' : 'Log in to post a project'}
+                    >
+                        <Plus className="w-4 h-4" />
+                        Post a Project
+                    </Button>
                 </motion.div>
 
-                <AnimatePresence mode="wait">
-                    <motion.div
-                        key={`${selectedCategory}-${searchQuery}`}
-                        className="space-y-8"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                    >
-                        {filteredProjects.map((project, index) => (
-                            <motion.div
-                                key={project.id}
-                                initial={{ opacity: 0, y: 30, scale: 0.95, x: -20 }}
-                                animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
-                                transition={{ 
-                                    type: "tween",
-                                    duration: 0.4,
-                                    ease: [0.4, 0, 0.2, 1],
-                                    delay: Math.min(index * 0.08, 0.6)
-                                }}
+                <motion.div {...fadeUp(1, 0.15)} className="flex flex-wrap justify-center gap-3 mt-6">
+                    {filters.map((filter) => {
+                        const isSelected = selectedCategory === filter.value;
+                        return (
+                            <Button
+                                key={filter.value}
+                                // Charcoal for the selected chip rather than gold: this row sits
+                                // where the backdrop's gold wedge falls, so a gold chip blends
+                                // into it exactly where it most needs to stand out.
+                                variant={isSelected ? 'darkGold' : 'ghost'}
+                                size="sm"
+                                lift={isSelected ? 'subtle' : false}
+                                aria-pressed={isSelected}
+                                onClick={() => setSelectedCategory(filter.value)}
                             >
-                                <ProjectCard project={project} />
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                </AnimatePresence>
+                                {filter.label}
+                            </Button>
+                        );
+                    })}
+                </motion.div>
+            </PageShell>
 
-                {filteredProjects.length === 0 && !loading && (
-                    <div className="text-center py-12">
-                        <p className="text-gray-400 text-lg">
-                            {searchQuery !== '' 
-                                ? `No projects found matching "${searchQuery}".`
-                                : selectedCategory === 'all' 
-                                    ? 'No projects found.' 
-                                    : `No ${getCategoryDisplayName(selectedCategory).toLowerCase()} found.`
-                            }
-                        </p>
-                    </div>
-                )}
+            <section className="px-6 sm:px-8 pt-8 pb-16">
+                <div className="max-w-7xl mx-auto">
+                    {loading ? (
+                        <div className="text-center font-body font-semibold text-usb-muted py-20 animate-pulse">
+                            Loading projects from the board...
+                        </div>
+                    ) : filteredProjects.length === 0 ? (
+                        // Same treatment as the lead paragraph under the page title, so an empty
+                        // board reads as part of the page rather than a greyed-out system message.
+                        // Same treatment as the lead paragraph under the page title, so an empty
+                        // board reads as part of the page rather than a greyed-out system message.
+                        // No button here: the one in the control row above is still on screen.
+                        <div className="font-body text-lg text-usb-charcoal text-center leading-relaxed py-20">
+                            {searchQuery.trim()
+                                ? `No projects match "${searchQuery.trim()}".`
+                                : selectedCategory === ALL
+                                    ? 'No projects on the board yet. Be the first to post one!'
+                                    : `No ${activeFilterLabel.toLowerCase()} on the board yet.`}
+                        </div>
+                    ) : (
+                        // Two across, not three: the cards are landscape now, and a third column
+                        // squeezes the text panel beside the image down to almost nothing.
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* popLayout takes a filtered-out card out of flow as it fades, so
+                                the cards after it reflow into the gap smoothly rather than
+                                jumping the moment it's removed. */}
+                            <AnimatePresence mode="popLayout">
+                                {filteredProjects.map((project, index) => (
+                                    <ProjectCard
+                                        key={project._id}
+                                        project={project}
+                                        index={index}
+                                        onView={setViewingProject}
+                                    />
+                                ))}
+                            </AnimatePresence>
+                        </div>
+                    )}
+                </div>
+            </section>
 
-                {loading && (
-                    <div className="text-center py-12">
-                        <p className="text-gray-400 text-lg">Loading...</p>
-                    </div>
-                )}
-            </div>
-        </motion.div>
+            <ProjectDetailModal project={viewingProject} onClose={() => setViewingProject(null)} />
+
+            <ProjectFormModal
+                open={isFormOpen}
+                isSubmitting={isSubmitting}
+                onSubmit={handleSubmit}
+                onClose={() => setIsFormOpen(false)}
+            />
+
+            <ResultModal result={result} onClose={() => setResult(null)} />
+        </>
     );
 }

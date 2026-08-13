@@ -1,24 +1,14 @@
 {
   "name": "backend",
-  "version": "1.0.0",
-  "description": "",
-  "license": "ISC",
-  "author": "",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "description": "Serverless API for the Purdue Technical Projects board. The handlers live in /api at the repo root; this workspace holds the modules they share.",
   "dependencies": {
-    "compression": "^1.8.1",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^5.1.0",
-    "mongoose": "^8.19.1",
-    "multer": "^2.0.2",
-    "nodemon": "^3.1.10",
-    "sharp": "^0.34.4"
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.3",
+    "mongodb": "^6.12.0",
+    "nodemailer": "^6.10.1",
+    "openai": "^4.77.0"
   }
 }
